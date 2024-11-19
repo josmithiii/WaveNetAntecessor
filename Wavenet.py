@@ -6,7 +6,14 @@ import numpy as np
 class CasualDilatedConv1D(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, dilation, padding=1):
         super().__init__()
-        self.conv1D = nn.Conv1d(in_channels, out_channels, kernel_size, dilation=dilation, bias=False, padding='same')
+        self.conv1D = nn.Conv1d(
+            in_channels,
+            out_channels,
+            kernel_size,
+            dilation=dilation,
+            bias=False,
+            padding=(kernel_size - 1) * dilation
+        )
         self.ignoreOutIndex = (kernel_size - 1) * dilation
 
     def forward(self, x):
@@ -120,15 +127,12 @@ class WaveNetClassifier(nn.Module):
         print(f"Receptive field: {receptive_field}")
         print(f"Expected output length: {seqLen - receptive_field}")
 
-        # The linear layer input size should be 4 (from WaveNet output shape)
+        # Linear layer on WaveNet output:
         self.flatten = nn.Flatten()
-        # The linear layer input size should match the flattened WaveNet output
         wavenet_output_length = seqLen - receptive_field
-        wavenet_output_channels = 1  # Assuming WaveNet outputs 1 channel
-        # JOS - Was: linear_input_size = wavenet_output_length * wavenet_output_channels
-        #       And this was 5 (off by 1)
-        # Fix the input size to match WaveNet's output
-        linear_input_size = 4  # From the debug output we see WaveNet outputs [8, 1, 4]
+        wavenet_output_channels = 1
+        linear_input_size = wavenet_output_length * wavenet_output_channels - 1 # -1 by JOS
+        # WaveNet outputs [8, 1, 4]
 
         print(f"Linear layer input size: {linear_input_size}")
         print(f"Linear layer output size: {output_size}")
@@ -137,11 +141,10 @@ class WaveNetClassifier(nn.Module):
         self.softmax = nn.Softmax(dim=1)
 
     def forward(self, x):
-        #print(f"Input shape: {x.shape}")
         x = self.wavenet(x)
-        #print(f"After WaveNet shape: {x.shape}")
+        print(f"After WaveNet shape: {x.shape}")
         x = self.flatten(x)
-        #print(f"After flatten shape: {x.shape}")
+        print(f"After flatten shape: {x.shape}")
         x = self.liner(x)
-        #print(f"After linear shape: {x.shape}")
+        print(f"After linear shape: {x.shape}")
         return self.softmax(x)
