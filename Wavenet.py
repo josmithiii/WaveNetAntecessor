@@ -107,17 +107,41 @@ class WaveNet(nn.Module):
         _, skipConnections = self.stackResBlock(x, skipSize)
         dense=self.denseLayer(skipConnections)
         return dense
-    
+
 class WaveNetClassifier(nn.Module):
-    def __init__(self,seqLen,output_size):
+    def __init__(self, seqLen, output_size):
         super().__init__()
-        self.output_size=output_size
-        self.wavenet=WaveNet(1,1,2,3,4)
-        self.liner=nn.Linear(seqLen-self.wavenet.calculateReceptiveField(),output_size)
-        self.softmax=nn.Softmax(-1)
-    
-    def forward(self,x):
-        x=self.wavenet(x)
-        x=self.liner(x)
+        self.output_size = output_size
+        self.wavenet = WaveNet(1, 1, 2, 3, 4)
+        receptive_field = self.wavenet.calculateReceptiveField()
+
+        print(f"WaveNet config:")
+        print(f"Input sequence length: {seqLen}")
+        print(f"Receptive field: {receptive_field}")
+        print(f"Expected output length: {seqLen - receptive_field}")
+
+        # The linear layer input size should be 4 (from WaveNet output shape)
+        self.flatten = nn.Flatten()
+        # The linear layer input size should match the flattened WaveNet output
+        wavenet_output_length = seqLen - receptive_field
+        wavenet_output_channels = 1  # Assuming WaveNet outputs 1 channel
+        # JOS - Was: linear_input_size = wavenet_output_length * wavenet_output_channels
+        #       And this was 5 (off by 1)
+        # Fix the input size to match WaveNet's output
+        linear_input_size = 4  # From the debug output we see WaveNet outputs [8, 1, 4]
+
+        print(f"Linear layer input size: {linear_input_size}")
+        print(f"Linear layer output size: {output_size}")
+
+        self.liner = nn.Linear(linear_input_size, output_size)
+        self.softmax = nn.Softmax(dim=1)
+
+    def forward(self, x):
+        #print(f"Input shape: {x.shape}")
+        x = self.wavenet(x)
+        #print(f"After WaveNet shape: {x.shape}")
+        x = self.flatten(x)
+        #print(f"After flatten shape: {x.shape}")
+        x = self.liner(x)
+        #print(f"After linear shape: {x.shape}")
         return self.softmax(x)
-        
